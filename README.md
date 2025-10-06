@@ -65,7 +65,6 @@ Pre-compiled binaries for Windows, macOS, and Linux are automatically built for 
 
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
 
-**Note:** Remember to replace `[Your Name]` in the `LICENSE` file with your own name or your organization's name.
 
 ## Developed by
 
