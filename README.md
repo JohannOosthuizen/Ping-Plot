@@ -23,7 +23,7 @@ A multi-target ping monitoring tool with a dark-themed GUI for real-time network
 
 1.  **Clone the repository:**
     ```bash
-    git clone https://github.com/your-username/Ping-Plot.git
+    git clone https://github.com/JohannOosthuizen/Ping-Plot.git
     cd Ping-Plot
     ```
 
@@ -66,3 +66,7 @@ Pre-compiled binaries for Windows, macOS, and Linux are automatically built for 
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
 
 **Note:** Remember to replace `[Your Name]` in the `LICENSE` file with your own name or your organization's name.
+
+## Developed by
+
+Johann Oosthuizen
