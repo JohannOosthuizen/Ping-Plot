@@ -46,7 +46,7 @@ view_window_options = {
     "24 hours": 86400,
     "All": None
 }
-view_window = view_window_options["5 min"]  # default view window
+view_window = view_window_options["2 min"]  # default view window
 
 # Logging
 log_file = "ping_history.csv"
@@ -62,7 +62,7 @@ pinging_active = False
 current_theme = "Dark"  # Default to Dark theme
 
 # Full screen flag
-full_screen = False
+full_screen = True
 
 # Full screen plot flag
 plot_fullscreen = False
@@ -74,10 +74,11 @@ root.title("Ping-Plot")
 
 # ---------------- Now Create Beep Alert Configuration Variables ----------------
 # (These must be created after the root window so they have a proper master.)
-up_alert_var = tk.BooleanVar(value=True)
-down_alert_var = tk.BooleanVar(value=False)
+up_alert_var = tk.BooleanVar(value=False)
+down_alert_var = tk.BooleanVar(value=True)
 
 def play_alarm_up():
+    """Plays a sound to indicate a target has come online."""
     print("Up alert!")
     try:
         import winsound
@@ -86,6 +87,7 @@ def play_alarm_up():
         root.bell()
 
 def play_alarm_down():
+    """Plays a sound to indicate a target has gone offline."""
     print("Down alert!")
     try:
         import winsound
@@ -96,7 +98,15 @@ def play_alarm_down():
 # ---------------- Utility Functions ----------------
 
 def get_default_gateway():
-    """Attempts to get the default gateway (router) for the current machine."""
+    """
+    Retrieves the default gateway IP address for the current machine.
+
+    Supports both Windows and Linux/macOS systems by parsing the output of
+    'route print' or 'ip route show default' respectively.
+
+    Returns:
+        str: The default gateway IP address as a string, or None if it cannot be determined.
+    """
     system = platform.system().lower()
     try:
         if system == "windows":
@@ -114,7 +124,15 @@ def get_default_gateway():
     return None
 
 def ping_host(ip):
-    """Pings a given IP address once. Returns True if successful."""
+    """
+    Sends a single ICMP echo request to the specified IP address.
+
+    Args:
+        ip (str): The IP address or hostname to ping.
+
+    Returns:
+        bool: True if the ping is successful (return code 0), False otherwise.
+    """
     param = '-n' if platform.system().lower() == 'windows' else '-c'
     command = ['ping', param, '1', ip]
     try:
@@ -124,7 +142,18 @@ def ping_host(ip):
         return False
 
 def log_ping_event(ip, timestamp, rtt, status):
-    """Logs a ping event to CSV. rtt is a float (ms) or None."""
+    """
+    Logs a single ping event to a CSV file.
+
+    This function is thread-safe, using a lock to prevent race conditions
+    when writing to the log file.
+
+    Args:
+        ip (str): The IP address that was pinged.
+        timestamp (datetime.datetime): The time of the ping event.
+        rtt (float or None): The round-trip time in milliseconds. None if the ping failed.
+        status (str): The status of the ping ("Online" or "Offline").
+    """
     with file_lock:
         file_exists = os.path.exists(log_file)
         with open(log_file, "a", newline="") as csvfile:
@@ -139,6 +168,20 @@ def log_ping_event(ip, timestamp, rtt, status):
 # ---------------- PingTarget Class ----------------
 
 class PingTarget:
+    """
+    Represents a single target to be monitored.
+
+    Each PingTarget instance runs its own pinging loop in a separate thread,
+    collecting RTT data and status information.
+
+    Attributes:
+        ip (str): The IP address or hostname of the target.
+        rtt_list (list): A list of RTT values in ms. None indicates a failed ping.
+        time_list (list): A list of datetime objects corresponding to each ping.
+        status (bool): The current online status of the target.
+        running (bool): A flag to control the pinging thread.
+        thread (threading.Thread): The thread object for the ping loop.
+    """
     def __init__(self, ip):
         self.ip = ip
         self.rtt_list = []       # List of RTT values (ms); None indicates failure.
@@ -151,14 +194,22 @@ class PingTarget:
         self.was_online = False
 
     def start(self):
+        """Starts the pinging loop in a new thread."""
         self.running = True
         self.thread = threading.Thread(target=self.ping_loop, daemon=True)
         self.thread.start()
 
     def stop(self):
+        """Stops the pinging loop."""
         self.running = False
 
     def ping_loop(self):
+        """
+        The main loop for pinging the target.
+
+        Continuously pings the target at the globally defined `ping_interval`,
+        records the RTT and status, and logs the event.
+        """
         global ping_interval
         while self.running:
             current_time = datetime.datetime.now()
@@ -191,8 +242,13 @@ class PingTarget:
 
 # ---------------- GUI and Plotting ----------------
 
-# --- Theme Application Function ---
 def apply_theme(theme):
+    """
+    Applies a visual theme to the application.
+
+    Args:
+        theme (str): The name of the theme to apply ("Dark" or "Light").
+    """
     global current_theme
     current_theme = theme
     if theme == "Dark":
@@ -203,18 +259,15 @@ def apply_theme(theme):
         root.tk_setPalette(background=bg_color, foreground=fg_color,
                            activeBackground=widget_bg, activeForeground=fg_color)
         
-        # Apply dark theme to all ttk widgets
         style = ttk.Style()
         style.theme_use("clam")
         
-        # General widget styling
         style.configure(".", background=bg_color, foreground=fg_color)
         style.configure("TFrame", background=bg_color)
         style.configure("TLabel", background=bg_color, foreground=fg_color)
         style.configure("TLabelFrame", background=bg_color, foreground=fg_color)
         style.configure("TLabelFrame.Label", background=bg_color, foreground=fg_color)
         
-        # Treeview styling
         style.configure("Treeview",
                         background=widget_bg,
                         foreground=fg_color,
@@ -225,14 +278,12 @@ def apply_theme(theme):
                         background=widget_bg,
                         foreground=fg_color)
         
-        # OptionMenu styling
         style.configure("TMenubutton",
                         background=widget_bg,
                         foreground=fg_color)
         style.map("TMenubutton",
                   background=[('active', '#6272a4')])
                   
-        # Checkbutton styling
         style.configure("TCheckbutton",
                         background=bg_color,
                         foreground=fg_color,
@@ -241,10 +292,9 @@ def apply_theme(theme):
                   foreground=[('active', fg_color)],
                   background=[('active', bg_color)])
     else:
-        # Default Tkinter light theme
         root.tk_setPalette(background="SystemButtonFace", foreground="black")
         style = ttk.Style()
-        style.theme_use("default") # Reset to default for light theme
+        style.theme_use("default")
 
 # --- Target Management Frame ---
 target_frame = tk.LabelFrame(root, text="Targets", padx=5, pady=5)
@@ -255,6 +305,7 @@ target_entry = tk.Entry(target_frame, width=20)
 target_entry.grid(row=0, column=1, padx=5, pady=5)
 
 def add_target():
+    """Adds a new ping target from the entry field."""
     ip = target_entry.get().strip()
     if ip == "":
         messagebox.showerror("Error", "Please enter a valid IP address.")
@@ -275,6 +326,7 @@ target_listbox = tk.Listbox(target_frame, height=4)
 target_listbox.grid(row=2, column=0, columnspan=3, sticky="we", padx=5, pady=5)
 
 def remove_target():
+    """Removes the selected target from the list."""
     selected = target_listbox.curselection()
     if not selected:
         messagebox.showerror("Error", "Please select a target to remove.")
@@ -304,6 +356,7 @@ error_entry.insert(0, str(error_threshold))
 error_entry.grid(row=0, column=3, padx=5)
 
 def set_thresholds():
+    """Sets the RTT warning and error thresholds from the entry fields."""
     global warning_threshold, error_threshold, auto_thresholds
     try:
         w = float(warning_entry.get().strip())
@@ -326,6 +379,7 @@ frequency_entry.insert(0, str(ping_interval))
 frequency_entry.grid(row=1, column=1, padx=5)
 
 def set_frequency():
+    """Sets the ping interval from the entry field."""
     global ping_interval
     try:
         new_interval = float(frequency_entry.get().strip())
@@ -339,6 +393,7 @@ tk.Button(settings_frame, text="Set Frequency", command=set_frequency).grid(row=
 tk.Label(settings_frame, text="View Window:").grid(row=1, column=3, sticky="e")
 view_var = tk.StringVar(value="5 min")
 def set_view_window(*args):
+    """Sets the time window for the data displayed on the plot."""
     global view_window
     view_window = view_window_options[view_var.get()]
 view_var.trace("w", set_view_window)
@@ -361,6 +416,7 @@ theme_menu.grid(row=2, column=5, padx=5)
 
 
 def toggle_plot_fullscreen():
+    """Toggles a fullscreen mode for the plot area, hiding other widgets."""
     global plot_fullscreen
     plot_fullscreen = not plot_fullscreen
     
@@ -371,44 +427,41 @@ def toggle_plot_fullscreen():
             widget.pack_forget()
         fullscreen_plot_button.config(text="Exit Fullscreen")
     else:
-        # To restore the layout correctly, we forget the widgets that are packed after the ones we hid,
-        # and then repack everything in the original order to restore the UI.
         control_frame.pack_forget()
         stats_frame.pack_forget()
         status_label.pack_forget()
         canvas.get_tk_widget().pack_forget()
         canvas._tkcanvas.pack_forget()
         
-        # Repack all the main frames in their original order
         target_frame.pack(fill=tk.X, padx=10, pady=5)
         settings_frame.pack(fill=tk.X, padx=10, pady=5)
         control_frame.pack(fill=tk.X, padx=10, pady=5)
         stats_frame.pack(fill=tk.X, padx=10, pady=5)
         status_label.pack(pady=5)
         
-        # Repack the canvas and toolbar
         canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
         toolbar.update()
         canvas._tkcanvas.pack(fill=tk.BOTH, expand=True)
         
-        # Reset the button text
         fullscreen_plot_button.config(text="Fullscreen Plot")
 
 def exit_fullscreen_modes(event=None):
-    """Callback function to exit plot or window fullscreen mode."""
+    """Exits any active fullscreen mode (plot or window) when the Escape key is pressed."""
     global fullscreen_ax, full_screen
-    # Priority 1: Exit plot fullscreen
     if fullscreen_ax:
         fullscreen_ax = None
-        # The timed update_plot will handle the redraw automatically
         return
 
-    # Priority 2: Exit window fullscreen (the one that hides the taskbar)
     if full_screen:
         toggle_fullscreen()
 
 def discover_and_add_hops(destination_ip="8.8.8.8"):
-    """Discovers intermediate hops to a destination and adds them as ping targets."""
+    """
+    Discovers intermediate network hops to a destination using traceroute.
+
+    Args:
+        destination_ip (str): The destination IP for the traceroute.
+    """
     system = platform.system().lower()
     if system == "windows":
         command = ["tracert", "-d", "-w", "1000", destination_ip]
@@ -419,7 +472,6 @@ def discover_and_add_hops(destination_ip="8.8.8.8"):
         status_var.set(f"Discovering hops to {destination_ip}... This may take a moment.")
         root.update_idletasks()
 
-        # This is a blocking call and will freeze the UI temporarily.
         result = subprocess.run(
             command,
             capture_output=True,
@@ -474,6 +526,7 @@ control_frame = tk.Frame(root)
 control_frame.pack(fill=tk.X, padx=10, pady=5)
 
 def toggle_pinging():
+    """Starts or stops the pinging process for all targets."""
     global pinging_active
     if not pinging_active:
         if not targets:
@@ -494,6 +547,7 @@ ping_button.pack(side=tk.LEFT, padx=5)
 default_button_color = ping_button.cget("background")
 
 def toggle_fullscreen():
+    """Toggles the main application window's fullscreen state."""
     global full_screen
     full_screen = not full_screen
     root.attributes("-fullscreen", full_screen)
@@ -504,6 +558,7 @@ fullscreen_plot_button.pack(side=tk.LEFT, padx=5)
 tk.Button(control_frame, text="Discover Hops", command=discover_and_add_hops, fg="black").pack(side=tk.LEFT, padx=5)
 
 def load_history():
+    """Loads and displays historical ping data from the CSV log file."""
     if not os.path.exists(log_file):
         messagebox.showinfo("Load History", "No history file found.")
         return
@@ -540,8 +595,6 @@ def load_history():
         y_vals = [r if r is not None else np.nan for r in data["rtts"]]
         ax_hist.plot_date(x_vals, y_vals, linestyle='-', color=colors[i % len(colors)], label=ip)
 
-        
-    # Handle duplicate labels in legend
     handles, labels = ax_hist.get_legend_handles_labels()
     by_label = dict(zip(labels, handles))
     ax_hist.legend(by_label.values(), by_label.keys(), loc="upper right")
@@ -568,12 +621,12 @@ stats_tree.column("avg", width=80, anchor="center")
 stats_tree.pack(fill=tk.X, padx=5, pady=5)
 
 def update_stats():
+    """Periodically updates the statistics treeview with the latest data."""
     for row in stats_tree.get_children():
         stats_tree.delete(row)
     now = datetime.datetime.now()
     lower_bound = now - datetime.timedelta(seconds=view_window) if view_window is not None else None
     for ip, target in targets.items():
-        # Filter data points within view window and that are not None
         data = [r for t, r in zip(target.time_list, target.rtt_list) if (lower_bound is None or t >= lower_bound) and r is not None]
         if data:
             m = min(data)
@@ -600,11 +653,10 @@ toolbar = NavigationToolbar2Tk(canvas, root)
 toolbar.update()
 canvas._tkcanvas.pack(fill=tk.BOTH, expand=True)
 
-# --- New variables and handlers for multi-plot and fullscreen ---
 fullscreen_ax = None # To track which axis is in fullscreen
 
 def on_plot_click(event):
-    """Handle double-click to enter fullscreen for a subplot."""
+    """Handles double-clicking on a subplot to enter fullscreen mode for that plot."""
     global fullscreen_ax
     if event.dblclick and event.inaxes:
         if not fullscreen_ax:
@@ -613,13 +665,20 @@ def on_plot_click(event):
 canvas.mpl_connect('button_press_event', on_plot_click)
 
 def draw_single_plot(ax, target, now, lower_bound):
-    """Helper function to draw the plot for a single target on a given axis."""
+    """
+    Draws the RTT plot for a single target on a given Matplotlib axis.
+
+    Args:
+        ax (matplotlib.axes.Axes): The axis to draw on.
+        target (PingTarget): The target whose data should be plotted.
+        now (datetime.datetime): The current time, for setting the x-axis limit.
+        lower_bound (datetime.datetime or None): The earliest time to display data from.
+    """
     ax.clear()
     ax.set_title(target.ip)
     ax.set_ylabel("RTT (ms)")
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
 
-    # Set a reasonable upper Y limit before drawing thresholds
     valid_rtts_in_view = [r for t, r in zip(target.time_list, target.rtt_list) if (lower_bound is None or t >= lower_bound) and r is not None]
     if valid_rtts_in_view:
         top_limit = max(error_threshold * 1.5, max(valid_rtts_in_view) * 1.2)
@@ -627,18 +686,17 @@ def draw_single_plot(ax, target, now, lower_bound):
         top_limit = error_threshold * 1.5
     ax.set_ylim(bottom=0, top=top_limit)
 
-    # Draw threshold bands
     ax.axhspan(warning_threshold, error_threshold, color='yellow', alpha=0.1, zorder=0)
     ax.axhspan(error_threshold, top_limit, color='red', alpha=0.1, zorder=0)
 
-    color = '#8be9fd'  # Cyan
+    color = '#8be9fd'
 
     filtered_data = [(t, r) for t, r in zip(target.time_list, target.rtt_list) if (lower_bound is None or t >= lower_bound)]
     if not filtered_data:
         ax.text(0.5, 0.5, "No data in view", ha='center', va='center')
         return
 
-    aggregation_threshold_seconds = 300  # 5 minutes
+    aggregation_threshold_seconds = 300
     use_aggregated_view = view_window is not None and view_window > aggregation_threshold_seconds
 
     if not use_aggregated_view:
@@ -669,10 +727,15 @@ def draw_single_plot(ax, target, now, lower_bound):
             ax.vlines(plot_times, plot_mins, plot_maxs, color=color, alpha=0.5)
             line, = ax.plot(plot_times, plot_avgs, linestyle='-', marker='o', markersize=2, color=color)
 
-
     ax.set_xlim(lower_bound, now)
 
 def update_plot():
+    """
+    The main plotting loop.
+
+    This function is called periodically to redraw the entire plot area. It handles
+    multi-plot layout, single-plot fullscreen, and auto-threshold updates.
+    """
     global warning_threshold, error_threshold, auto_thresholds, fullscreen_ax
 
     now = datetime.datetime.now()
@@ -723,6 +786,7 @@ def update_plot():
 update_plot()
 
 def update_status():
+    """Periodically updates the status bar text."""
     if not pinging_active:
         status_var.set("Status: Idle")
     else:
@@ -732,8 +796,8 @@ def update_status():
 
 update_status()
 
-# --- Add Default Targets and Auto-Start ---
 def add_default_targets():
+    """Adds default ping targets (Google DNS and the default gateway) on startup."""
     default_ips = ["8.8.8.8"]
     gateway = get_default_gateway()
     if gateway:
@@ -745,14 +809,15 @@ def add_default_targets():
             target_listbox.insert(tk.END, ip)
 
 add_default_targets()
-toggle_pinging()  # Auto-start pinging
+toggle_pinging()
 
 def on_closing():
+    """Handles the application window being closed."""
     for target in targets.values():
         target.stop()
     root.destroy()
 
 root.protocol("WM_DELETE_WINDOW", on_closing)
 root.bind('<Escape>', exit_fullscreen_modes)
-apply_theme(current_theme)  # Apply initial theme
+apply_theme(current_theme)
 root.mainloop()
