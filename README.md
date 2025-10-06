@@ -2,8 +2,10 @@
 
 A multi-target ping monitoring tool with a dark-themed GUI for real-time network latency visualization.
 
-![Ping-Plot Screenshot](https://raw.githubusercontent.com/user/repo/main/screenshot.png)  
-*(Note: You'll need to replace the above screenshot URL with your own after you upload one to your repository.)*
+![Ping-Plot Screenshot](https://github.com/JohannOosthuizen/Ping-Plot/blob/master/images/full-screen-single-ping.jpg)  
+
+![Ping-Plot Screenshot](https://github.com/JohannOosthuizen/Ping-Plot/blob/master/images/full-screen-double-ping.jpg)
+
 
 ## Features
 
